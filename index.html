@@ -1,0 +1,679 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>픽셀 숫자 시뮬레이터</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* 레이아웃: 위에 설정 줄, 아래는 왼쪽 레일(원본·줄인 이미지·사실·선택한 칸) + 오른쪽 숫자 격자.
+   팔레트는 수업 PPT(크림·네이비·골드)와 맞춤. 숫자는 고정폭 글꼴. */
+:root {
+  --bg: #F4F2EA;
+  --surface: #FFFFFF;
+  --surface-2: #EBE7DA;
+  --fg: #29324E;
+  --muted: #5B627C;
+  --line: #D8D2C0;
+  --btn-bg: #29324E;
+  --btn-fg: #F4F2EA;
+  --gold: #D7BA74;
+  --gold-ink: #7A5F12;
+  --focus: #8A6A10;
+  --ch-r: #B3302C;
+  --ch-g: #23703F;
+  --ch-b: #2450B0;
+  --sans: "Noto Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1B2136; --surface: #262E4A; --surface-2: #313A5A; --fg: #F1EEE4; --muted: #AAB1CB;
+    --line: #414B70; --btn-bg: #D7BA74; --btn-fg: #1B2136; --gold-ink: #D7BA74; --focus: #E8CD8A;
+    --ch-r: #F28B86; --ch-g: #7FD6A0; --ch-b: #92B5FF; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1B2136; --surface: #262E4A; --surface-2: #313A5A; --fg: #F1EEE4; --muted: #AAB1CB;
+  --line: #414B70; --btn-bg: #D7BA74; --btn-fg: #1B2136; --gold-ink: #D7BA74; --focus: #E8CD8A;
+  --ch-r: #F28B86; --ch-g: #7FD6A0; --ch-b: #92B5FF; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--sans); font-size: 15px; line-height: 1.6;
+  padding-inline: 16px; padding-block: 28px 56px;
+}
+.page { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.head { display: flex; flex-direction: column; gap: 6px; }
+.eyebrow { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: .08em; color: var(--gold-ink); }
+h1 { margin: 0; font-size: clamp(24px, 4vw, 32px); line-height: 1.25; font-weight: 700; text-wrap: balance; }
+.lede { margin: 0; max-width: 68ch; color: var(--muted); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.controls { display: flex; flex-wrap: wrap; gap: 18px 28px; padding: 16px 18px; align-items: flex-start; }
+.ctl { display: flex; flex-direction: column; gap: 6px; border: 0; padding: 0; margin: 0; min-width: 0; }
+.lab { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--muted); padding: 0; }
+
+.drop {
+  display: flex; flex-direction: column; gap: 1px; cursor: pointer;
+  padding: 10px 14px; min-width: 230px;
+  border: 1.5px dashed var(--muted); border-radius: 8px; background: var(--bg);
+}
+.drop:hover, .drop.over, .drop:focus-within { border-color: var(--focus); background: var(--surface-2); }
+.drop-t { font-weight: 700; }
+.drop-s { font-size: 12.5px; color: var(--muted); }
+.samples { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip, .btn {
+  font: inherit; font-size: 13px; color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; cursor: pointer;
+}
+.chip:hover, .btn:hover { background: var(--surface-2); }
+.chip:focus-visible, .btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.seg > div { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; background: var(--bg); }
+.seg label { position: relative; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.seg span { display: block; padding: 6px 12px; font-size: 13.5px; white-space: nowrap; border-left: 1px solid var(--line); }
+.seg label:first-child span { border-left: 0; }
+.seg input:checked + span { background: var(--btn-bg); color: var(--btn-fg); font-weight: 700; }
+.seg input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: -3px; }
+.seg label:hover input:not(:checked) + span { background: var(--surface-2); }
+.chk { flex-direction: row; align-items: center; gap: 8px; align-self: flex-end; padding-bottom: 6px; cursor: pointer; font-size: 13.5px; }
+.chk input { width: 16px; height: 16px; accent-color: var(--btn-bg); }
+
+.stage { display: grid; grid-template-columns: minmax(260px, 310px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.rail { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+figure canvas { width: 100%; max-width: 100%; aspect-ratio: 1; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); display: block; }
+#pvS { image-rendering: pixelated; }
+figcaption { font-size: 12px; color: var(--muted); line-height: 1.4; }
+
+.facts { margin: 0; padding: 12px 14px; display: grid; grid-template-columns: auto 1fr; gap: 6px 12px; font-size: 13.5px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; font-family: var(--mono); font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.facts .note { grid-column: 1 / -1; margin: 2px 0 0; font-family: var(--sans); font-size: 12.5px; color: var(--gold-ink); text-align: left; }
+
+.detail { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.d-head { display: flex; gap: 10px; align-items: center; }
+.swatch { width: 38px; height: 38px; border-radius: 5px; border: 1px solid var(--line); flex: none; }
+.d-title { font-weight: 700; line-height: 1.3; }
+.d-idx { font-family: var(--mono); font-size: 12.5px; color: var(--muted); }
+.d-list { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+.d-list dt { color: var(--muted); }
+.d-list dd { margin: 0; font-family: var(--mono); font-size: 12.5px; text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.cr { color: var(--ch-r); font-weight: 600; } .cg { color: var(--ch-g); font-weight: 600; } .cb { color: var(--ch-b); font-weight: 600; }
+
+.flat { display: flex; flex-direction: column; gap: 8px; }
+#flatOut { padding: 10px 12px; font-family: var(--mono); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+#flatOut .cap { display: block; margin-top: 6px; font-family: var(--sans); font-size: 12.5px; color: var(--muted); }
+
+.gridcol { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.gh h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.gh p { margin: 2px 0 0; font-size: 13px; color: var(--muted); min-height: 1.6em; }
+.gridwrap { overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-width: 0; max-width: 100%; }
+.grid { display: grid; gap: 2px; padding: 12px; width: max-content; }
+.grid:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.cell {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  font-family: var(--mono); font-variant-numeric: tabular-nums; line-height: 1.15;
+  border-radius: 3px; cursor: pointer; user-select: none; position: relative;
+}
+.cell i { font-style: normal; font-size: .78em; opacity: .75; margin-right: 3px; }
+.cell:hover { box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 3.5px #14182B; z-index: 1; }
+.cell.sel { box-shadow: 0 0 0 2px #FFFFFF, 0 0 0 4.5px #14182B; z-index: 2; }
+.grid.split { display: flex; flex-wrap: wrap; gap: 20px 26px; width: auto; max-width: 100%; }
+.sub { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.subt { font-size: 13px; font-weight: 700; }
+.subg { display: grid; gap: 2px; }
+.hint { margin: 0; font-size: 13px; color: var(--gold-ink); }
+
+.ask { padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
+.ask h2 { margin: 0 0 2px; font-size: 15px; font-weight: 700; }
+.ask p { margin: 0; font-size: 14px; max-width: 80ch; }
+#msg { margin: 0; font-size: 13px; color: var(--ch-r); min-height: 1.4em; }
+
+@media (max-width: 900px) {
+  .stage { grid-template-columns: minmax(0, 1fr); }
+  .pair { max-width: 420px; }
+}
+</style>
+
+</head>
+<body>
+<div class="page">
+  <header class="head">
+    <p class="eyebrow">인공지능 프로그래밍 · 이미지 표현</p>
+    <h1>픽셀 숫자 시뮬레이터</h1>
+    <p class="lede">이미지를 올리면 가운데를 정사각형으로 잘라 작은 격자로 줄이고, 칸마다 컴퓨터가 저장하는 숫자를 보여 줍니다. 이미지는 이 브라우저 안에서만 처리되며 어디로도 전송되지 않습니다.</p>
+  </header>
+
+  <section class="panel controls" aria-label="설정">
+    <div class="ctl">
+      <span class="lab">이미지</span>
+      <label class="drop" id="drop" for="file">
+        <span class="drop-t">이미지 올리기</span>
+        <span class="drop-s">파일 선택, 끌어다 놓기, Ctrl+V 붙여넣기</span>
+      </label>
+      <input class="sr" type="file" id="file" accept="image/*">
+      <div class="samples">
+        <button type="button" class="chip" id="s1">예시: 숫자 5 (MNIST 모양)</button>
+        <button type="button" class="chip" id="s2">예시: 빛의 삼원색 겹침</button>
+      </div>
+    </div>
+
+    <fieldset class="ctl seg" id="fsSize">
+      <legend class="lab">격자 크기</legend>
+      <div>
+        <label><input type="radio" name="size" value="8"><span>8×8</span></label>
+        <label><input type="radio" name="size" value="12" checked><span>12×12</span></label>
+        <label><input type="radio" name="size" value="16"><span>16×16</span></label>
+        <label><input type="radio" name="size" value="20"><span>20×20</span></label>
+        <label><input type="radio" name="size" value="28"><span>28×28</span></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="ctl seg" id="fsMode">
+      <legend class="lab">색 표현</legend>
+      <div>
+        <label><input type="radio" name="mode" value="gray" checked><span>흑백</span></label>
+        <label><input type="radio" name="mode" value="color"><span>컬러</span></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="ctl seg" id="fsFmt">
+      <legend class="lab">숫자 표시</legend>
+      <div>
+        <label><input type="radio" name="fmt" value="int" checked><span>0~255</span></label>
+        <label><input type="radio" name="fmt" value="float"><span>0~1 (정규화)</span></label>
+      </div>
+    </fieldset>
+
+    <fieldset class="ctl seg" id="fsCh" hidden>
+      <legend class="lab">보기</legend>
+      <div>
+        <label><input type="radio" name="ch" value="all" checked><span>R·G·B 전체</span></label>
+        <label><input type="radio" name="ch" value="split"><span>채널 3개 표</span></label>
+        <label><input type="radio" name="ch" value="r"><span>R</span></label>
+        <label><input type="radio" name="ch" value="g"><span>G</span></label>
+        <label><input type="radio" name="ch" value="b"><span>B</span></label>
+      </div>
+    </fieldset>
+
+    <label class="ctl chk" id="fsInv"><input type="checkbox" id="inv"><span>밝기 반전 (255 − 값)</span></label>
+  </section>
+  <p id="msg" role="status"></p>
+
+  <div class="stage">
+    <aside class="rail">
+      <div class="pair">
+        <figure>
+          <canvas id="pvO" width="280" height="280" aria-label="원본 이미지의 가운데 정사각형"></canvas>
+          <figcaption>원본 (가운데 정사각형)</figcaption>
+        </figure>
+        <figure>
+          <canvas id="pvS" width="12" height="12" aria-label="줄인 이미지"></canvas>
+          <figcaption id="pvSCap">줄인 이미지</figcaption>
+        </figure>
+      </div>
+      <dl class="panel facts" id="facts"></dl>
+      <div class="panel detail" id="detail" aria-live="polite"></div>
+      <div class="flat">
+        <button type="button" class="btn" id="flatBtn" aria-expanded="false" aria-controls="flatOut">1차원으로 펼치기 (reshape) 보기</button>
+        <div id="flatOut" hidden></div>
+      </div>
+    </aside>
+
+    <section class="gridcol">
+      <div class="gh">
+        <h2>칸마다 저장된 숫자</h2>
+        <p id="gnote"></p>
+      </div>
+      <div class="gridwrap" id="gridWrap">
+        <div class="grid" id="grid" role="grid" tabindex="0" aria-label="픽셀 숫자 격자. 방향키로 칸을 옮길 수 있습니다."></div>
+      </div>
+      <p class="hint" id="hint" hidden>컬러는 숫자가 많아 8~12칸일 때 가장 보기 편합니다. 칸이 많으면 표를 밀어서 확인하세요.</p>
+    </section>
+  </div>
+
+  <section class="panel ask">
+    <h2>관찰해 볼 점</h2>
+    <p>① 같은 이미지를 8×8과 28×28로 바꾸면 숫자는 몇 개에서 몇 개로 늘어나는지 확인</p>
+    <p>② 컬러로 바꾸고 R, G, B를 각각 눌러, 흰색 칸과 검은색 칸의 세 값이 어떻게 다른지 확인</p>
+    <p>③ 컬러에서 "채널 3개 표"를 눌러, 같은 행·열의 세 숫자를 찾아 한 픽셀의 (R, G, B)로 묶어 보기</p>
+    <p>④ 0~1 (정규화)로 바꾸고 모든 값이 0과 1 사이로 들어오는지 확인한 뒤, 신경망에 이 값을 넣는 이유 설명</p>
+  </section>
+</div>
+
+<script>
+(function () {
+  var SRC_MAX = 256;
+  var $ = function (id) { return document.getElementById(id); };
+  var state = {
+    N: 12, mode: 'gray', fmt: 'int', ch: 'all', invert: false,
+    sq: null, rgb: null, pinned: null, name: '', lastCw: 0
+  };
+
+  /* ---------- 이미지 → 정사각형 캔버스 ---------- */
+  function makeSquare(img) {
+    var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    var s = Math.min(w, h), sx = (w - s) / 2, sy = (h - s) / 2;
+    var first = Math.min(s, 2048);
+    var cur = document.createElement('canvas');
+    cur.width = cur.height = first;
+    var x = cur.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, first, first);
+    x.imageSmoothingQuality = 'high';
+    x.drawImage(img, sx, sy, s, s, 0, 0, first, first);
+    var size = first;
+    while (size > SRC_MAX * 2) {
+      var nx = Math.max(SRC_MAX, Math.floor(size / 2));
+      var n = document.createElement('canvas');
+      n.width = n.height = nx;
+      var c = n.getContext('2d');
+      c.imageSmoothingQuality = 'high';
+      c.drawImage(cur, 0, 0, size, size, 0, 0, nx, nx);
+      cur = n; size = nx;
+    }
+    if (size > SRC_MAX) {
+      var out = document.createElement('canvas');
+      out.width = out.height = SRC_MAX;
+      var o = out.getContext('2d');
+      o.imageSmoothingQuality = 'high';
+      o.drawImage(cur, 0, 0, size, size, 0, 0, SRC_MAX, SRC_MAX);
+      cur = out;
+    }
+    return cur;
+  }
+
+  /* ---------- 면적 평균으로 N×N 칸의 RGB 계산 ---------- */
+  function sampleGrid() {
+    var S = state.sq.width, N = state.N;
+    var d = state.sq.getContext('2d').getImageData(0, 0, S, S).data;
+    var out = new Uint8Array(N * N * 3), step = S / N;
+    for (var i = 0; i < N; i++) {
+      var y0 = i * step, y1 = Math.min((i + 1) * step, S);
+      for (var j = 0; j < N; j++) {
+        var x0 = j * step, x1 = Math.min((j + 1) * step, S);
+        var r = 0, g = 0, b = 0, wt = 0;
+        for (var y = Math.floor(y0); y < Math.ceil(y1) && y < S; y++) {
+          var wy = Math.min(y + 1, y1) - Math.max(y, y0);
+          if (wy <= 0) continue;
+          for (var x = Math.floor(x0); x < Math.ceil(x1) && x < S; x++) {
+            var wx = Math.min(x + 1, x1) - Math.max(x, x0);
+            if (wx <= 0) continue;
+            var w = wx * wy, p = (y * S + x) * 4;
+            r += d[p] * w; g += d[p + 1] * w; b += d[p + 2] * w; wt += w;
+          }
+        }
+        var o = (i * N + j) * 3;
+        out[o] = Math.round(r / wt); out[o + 1] = Math.round(g / wt); out[o + 2] = Math.round(b / wt);
+      }
+    }
+    state.rgb = out;
+  }
+
+  /* ---------- 값 계산 ---------- */
+  function grayOf(r, g, b) { return Math.round(0.299 * r + 0.587 * g + 0.114 * b); }
+  function grayAt(k) {
+    var o = k * 3, v = grayOf(state.rgb[o], state.rgb[o + 1], state.rgb[o + 2]);
+    return state.invert ? 255 - v : v;
+  }
+  function fmtVal(v) { return state.fmt === 'int' ? String(v) : (v / 255).toFixed(2); }
+  function fgFor(r, g, b) { return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.58 ? '#14182B' : '#FFFFFF'; }
+  function bin8(v) { var s = v.toString(2); while (s.length < 8) s = '0' + s; return s; }
+  function hex2(v) { var s = v.toString(16).toUpperCase(); return s.length < 2 ? '0' + s : s; }
+  function isAll() { return state.mode === 'color' && state.ch === 'all'; }
+  function isSplit() { return state.mode === 'color' && state.ch === 'split'; }
+  function is3() { return isAll() || isSplit(); }
+  function chIndex() { return { r: 0, g: 1, b: 2 }[state.ch]; }
+
+  /* ---------- 현재 보기의 숫자 목록(펼치기용) ---------- */
+  function viewValues() {
+    var N = state.N, vals = [], k;
+    if (state.mode === 'gray') {
+      for (k = 0; k < N * N; k++) vals.push(grayAt(k));
+    } else if (state.ch === 'all' || state.ch === 'split') {
+      for (k = 0; k < N * N * 3; k++) vals.push(state.rgb[k]);
+    } else {
+      var ci = chIndex();
+      for (k = 0; k < N * N; k++) vals.push(state.rgb[k * 3 + ci]);
+    }
+    return vals;
+  }
+
+  /* ---------- 격자 크기 계산 ---------- */
+  function metrics() {
+    var N = state.N, all = isAll();
+    if (isSplit()) {
+      var av = Math.max(240, $('gridWrap').clientWidth - 24);
+      var per = N <= 12 ? (av - 52) / 3 : av;
+      var mw = state.fmt === 'int' ? 26 : 34;
+      var c3 = Math.max(mw, Math.min(52, Math.floor((per - (N - 1) * 2) / N)));
+      return { cw: c3, ch: c3, fs: Math.round(Math.max(10, Math.min(14, c3 * 0.32)) * 10) / 10 };
+    }
+    var avail = Math.max(240, $('gridWrap').clientWidth - 24);
+    var minW = all ? (state.fmt === 'int' ? 46 : 56) : (state.fmt === 'int' ? 34 : 42);
+    var maxW = all ? 76 : 64;
+    var cw = Math.max(minW, Math.min(maxW, Math.floor((avail - (N - 1) * 2) / N)));
+    var fs = all ? Math.max(10, Math.min(13, cw * 0.2)) : Math.max(11, Math.min(16, cw * 0.3));
+    var chh = all ? Math.ceil(fs * 3.7 + 8) : cw;
+    return { cw: cw, ch: chh, fs: Math.round(fs * 10) / 10 };
+  }
+
+  /* ---------- 격자 그리기 ---------- */
+  function renderGrid() {
+    var N = state.N, g = $('grid'), m = metrics(), all = isAll();
+    state.lastCw = m.cw;
+    if (isSplit()) { renderSplit(g, m); return; }
+    g.classList.remove('split');
+    g.style.gridTemplateColumns = 'repeat(' + N + ', ' + m.cw + 'px)';
+    g.style.gridAutoRows = m.ch + 'px';
+    g.style.fontSize = m.fs + 'px';
+    var html = [], view = new Uint8ClampedArray(N * N * 4);
+    var ci = state.mode === 'color' && !all ? chIndex() : -1;
+    var chColor = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    for (var i = 0; i < N; i++) {
+      for (var j = 0; j < N; j++) {
+        var k = i * N + j, o = k * 3, r = state.rgb[o], gg = state.rgb[o + 1], b = state.rgb[o + 2];
+        var bg, fg, inner, vr, vg, vb;
+        if (state.mode === 'gray') {
+          var v = grayAt(k);
+          vr = vg = vb = v; inner = fmtVal(v);
+        } else if (all) {
+          vr = r; vg = gg; vb = b;
+          inner = '<span><i>R</i>' + fmtVal(r) + '</span><span><i>G</i>' + fmtVal(gg) + '</span><span><i>B</i>' + fmtVal(b) + '</span>';
+        } else {
+          var cv = state.rgb[o + ci], c = chColor[ci];
+          vr = c[0] * cv; vg = c[1] * cv; vb = c[2] * cv; inner = fmtVal(cv);
+        }
+        bg = 'rgb(' + vr + ',' + vg + ',' + vb + ')';
+        fg = fgFor(vr, vg, vb);
+        view[k * 4] = vr; view[k * 4 + 1] = vg; view[k * 4 + 2] = vb; view[k * 4 + 3] = 255;
+        html.push('<div class="cell" role="gridcell" data-i="' + i + '" data-j="' + j + '" style="background:' + bg + ';color:' + fg + '">' + inner + '</div>');
+      }
+    }
+    g.innerHTML = html.join('');
+    state.view = view;
+    markSelected();
+  }
+
+  /* 채널 3개 표: R, G, B 각각 N×N 표를 나란히 */
+  function renderSplit(g, m) {
+    var N = state.N, names = ['R 채널 · 빨강', 'G 채널 · 초록', 'B 채널 · 파랑'], cls = ['cr', 'cg', 'cb'];
+    var view = new Uint8ClampedArray(N * N * 4), parts = [];
+    g.classList.add('split');
+    g.style.gridTemplateColumns = ''; g.style.gridAutoRows = '';
+    g.style.fontSize = m.fs + 'px';
+    for (var c = 0; c < 3; c++) {
+      var h = ['<div class="sub"><div class="subt ' + cls[c] + '">' + names[c] + ' (' + N + '×' + N + ')</div>' +
+        '<div class="subg" style="grid-template-columns:repeat(' + N + ',' + m.cw + 'px);grid-auto-rows:' + m.cw + 'px">'];
+      for (var i = 0; i < N; i++) {
+        for (var j = 0; j < N; j++) {
+          var k = i * N + j, v = state.rgb[k * 3 + c], t = [0, 0, 0];
+          t[c] = v;
+          h.push('<div class="cell" role="gridcell" data-i="' + i + '" data-j="' + j + '" style="background:rgb(' + t[0] + ',' + t[1] + ',' + t[2] + ');color:' + fgFor(t[0], t[1], t[2]) + '">' + fmtVal(v) + '</div>');
+          if (c === 0) {
+            view[k * 4] = state.rgb[k * 3]; view[k * 4 + 1] = state.rgb[k * 3 + 1];
+            view[k * 4 + 2] = state.rgb[k * 3 + 2]; view[k * 4 + 3] = 255;
+          }
+        }
+      }
+      h.push('</div></div>');
+      parts.push(h.join(''));
+    }
+    g.innerHTML = parts.join('');
+    state.view = view;
+    markSelected();
+  }
+
+  function markSelected() {
+    var g = $('grid');
+    g.querySelectorAll('.cell.sel').forEach(function (e) { e.classList.remove('sel'); });
+    if (!state.pinned) return;
+    g.querySelectorAll('.cell[data-i="' + state.pinned.i + '"][data-j="' + state.pinned.j + '"]').forEach(function (e) { e.classList.add('sel'); });
+  }
+
+  /* ---------- 미리보기 ---------- */
+  function renderPreviews() {
+    var N = state.N, po = $('pvO'), x = po.getContext('2d');
+    x.imageSmoothingQuality = 'high';
+    x.clearRect(0, 0, po.width, po.height);
+    x.drawImage(state.sq, 0, 0, state.sq.width, state.sq.height, 0, 0, po.width, po.height);
+    var ps = $('pvS');
+    ps.width = N; ps.height = N;
+    ps.getContext('2d').putImageData(new ImageData(state.view, N, N), 0, 0);
+    $('pvSCap').textContent = '줄인 이미지 ' + N + '×' + N + ' (실제 크기 그대로 확대)';
+  }
+
+  /* ---------- 사실 목록 ---------- */
+  function renderFacts() {
+    var N = state.N, all = is3(), per = all ? 3 : 1, total = N * N * per;
+    var shape = all ? '(' + N + ', ' + N + ', 3)' : '(' + N + ', ' + N + ')';
+    var rows = [
+      ['격자 크기', N + ' × ' + N + ' 픽셀'],
+      ['shape', shape],
+      ['숫자 개수', total.toLocaleString('ko-KR') + '개'],
+      ['값의 범위', state.fmt === 'int' ? '0 ~ 255' : '0.0 ~ 1.0'],
+      ['저장 용량', total.toLocaleString('ko-KR') + ' 바이트 (숫자 1개 = 8비트)']
+    ];
+    var h = '';
+    rows.forEach(function (r) { h += '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; });
+    if (N === 28 && !all) h += '<p class="note">28 × 28 = 784개, 교과서 MNIST 손글씨와 같은 크기입니다.</p>';
+    if (all) h += '<p class="note">컬러는 칸마다 R, G, B 숫자 3개가 필요해서 흑백의 3배입니다.</p>';
+    if (isSplit()) h += '<p class="note">' + N + '×' + N + ' 표 3장(R, G, B)을 겹친 것이 shape ' + shape + ' 입니다.</p>';
+    $('facts').innerHTML = h;
+  }
+
+  /* ---------- 선택한 칸 상세 ---------- */
+  function detailHtml(i, j) {
+    var N = state.N, k = i * N + j, o = k * 3;
+    var r = state.rgb[o], g = state.rgb[o + 1], b = state.rgb[o + 2];
+    var head, list;
+    if (state.mode === 'gray') {
+      var v = grayAt(k), orig = grayOf(r, g, b);
+      head = swatch('rgb(' + v + ',' + v + ',' + v + ')', i, j, 'X[' + i + '][' + j + '] = ' + v);
+      list = row('밝기', String(v)) + row('이진수 (8비트)', bin8(v)) +
+        row('정규화', v + ' / 255 = ' + (v / 255).toFixed(3));
+      if (state.invert) list += row('반전 전 밝기', orig + ' → 255 − ' + orig + ' = ' + v);
+      else if (!(r === g && g === b)) list += row('계산', '0.299×' + r + ' + 0.587×' + g + ' + 0.114×' + b);
+    } else {
+      head = swatch('rgb(' + r + ',' + g + ',' + b + ')', i, j, 'X[' + i + '][' + j + '] = [' + r + ', ' + g + ', ' + b + ']');
+      list = row('<span class="cr">R</span> 빨강', r + '  ' + bin8(r)) +
+        row('<span class="cg">G</span> 초록', g + '  ' + bin8(g)) +
+        row('<span class="cb">B</span> 파랑', b + '  ' + bin8(b)) +
+        row('16진수', '#' + hex2(r) + hex2(g) + hex2(b)) +
+        row('픽셀 1개', '8 + 8 + 8 = 24비트');
+    }
+    return head + '<dl class="d-list">' + list + '</dl>';
+  }
+  function swatch(css, i, j, code) {
+    return '<div class="d-head"><span class="swatch" style="background:' + css + '"></span><div>' +
+      '<div class="d-title">' + (i + 1) + '행 ' + (j + 1) + '열</div><div class="d-idx">' + code + '</div></div></div>';
+  }
+  function row(k, v) { return '<dt>' + k + '</dt><dd>' + v + '</dd>'; }
+  function showDetail(i, j) { $('detail').innerHTML = detailHtml(i, j); }
+  function showPinned() { if (state.pinned) showDetail(state.pinned.i, state.pinned.j); }
+
+  /* ---------- 펼치기 ---------- */
+  function renderFlat() {
+    var box = $('flatOut');
+    if (box.hidden) return;
+    var vals = viewValues(), show = vals.slice(0, 36).map(fmtVal);
+    var all = is3(), N = state.N;
+    var from = all ? '(' + N + ', ' + N + ', 3)' : '(' + N + ', ' + N + ')';
+    box.innerHTML = '[' + show.join(', ') + ', …]' +
+      '<span class="cap">앞의 36개만 표시. 모두 ' + vals.length.toLocaleString('ko-KR') + '개가 한 줄로 이어집니다. shape ' +
+      from + ' → (' + vals.length + ',)' + (all ? ' · 픽셀 하나씩 R, G, B 순서' : ' · 윗줄부터 왼쪽에서 오른쪽 순서') + '</span>';
+  }
+
+  /* ---------- 안내 문구 ---------- */
+  function renderNote() {
+    var t;
+    if (state.mode === 'gray') t = '흑백 값 = 0.299×R + 0.587×G + 0.114×B (반올림). 0은 검정, 255는 흰색. 칸을 누르면 아래 왼쪽에 자세히 나옵니다.';
+    else if (state.ch === 'split') t = '컬러 이미지는 R, G, B 숫자표 3장으로 저장됩니다. 세 표에서 같은 행·열 위치의 숫자 3개가 한 픽셀의 색입니다.';
+    else if (state.ch === 'all') t = '칸 색은 원래 픽셀 색, 숫자는 R·G·B 세기. 0은 꺼짐, 255는 가장 밝음.';
+    else t = ({ r: '빨강', g: '초록', b: '파랑' })[state.ch] + ' 채널만 본 모습. 숫자가 클수록 그 색이 진해집니다.';
+    $('gnote').textContent = t;
+    $('hint').hidden = !((isAll() && state.N > 16) || (isSplit() && state.N > 12));
+  }
+
+  /* ---------- 전체 갱신 ---------- */
+  function refresh(resample) {
+    if (!state.sq) return;
+    if (resample) sampleGrid();
+    $('fsCh').hidden = state.mode !== 'color';
+    $('fsInv').hidden = state.mode !== 'gray';
+    renderGrid();
+    renderPreviews();
+    renderFacts();
+    renderNote();
+    showPinned();
+    renderFlat();
+  }
+  function centerPin() { var c = Math.floor(state.N / 2); state.pinned = { i: c, j: c }; }
+
+  function setSource(src, name) {
+    state.sq = makeSquare(src);
+    state.name = name;
+    sampleGrid();
+    centerPin();
+    refresh(false);
+  }
+
+  /* ---------- 예시 이미지 ---------- */
+  function sampleDigit() {
+    var c = document.createElement('canvas'); c.width = c.height = 280;
+    var x = c.getContext('2d');
+    x.fillStyle = '#000'; x.fillRect(0, 0, 280, 280);
+    x.fillStyle = '#fff'; x.strokeStyle = '#fff'; x.lineWidth = 6; x.lineJoin = 'round';
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.font = '700 210px "Noto Sans KR", system-ui, sans-serif';
+    x.fillText('5', 140, 148); x.strokeText('5', 140, 148);
+    return c;
+  }
+  function sampleRGB() {
+    var c = document.createElement('canvas'); c.width = c.height = 280;
+    var x = c.getContext('2d');
+    x.fillStyle = '#000'; x.fillRect(0, 0, 280, 280);
+    x.globalCompositeOperation = 'lighter';
+    [['#FF0000', 112, 104], ['#00FF00', 168, 104], ['#0000FF', 140, 152]].forEach(function (d) {
+      x.fillStyle = d[0]; x.beginPath(); x.arc(d[1], d[2], 78, 0, Math.PI * 2); x.fill();
+    });
+    return c;
+  }
+
+  /* ---------- 파일 읽기 ---------- */
+  function say(t) { $('msg').textContent = t || ''; }
+  function loadFile(f) {
+    if (!f) return;
+    if (!/^image\//.test(f.type)) { say('이미지 파일만 올릴 수 있습니다. PNG, JPG, GIF, WebP 형식을 사용하세요.'); return; }
+    var url = URL.createObjectURL(f), im = new Image();
+    im.onload = function () { say(''); try { setSource(im, f.name); } finally { URL.revokeObjectURL(url); } };
+    im.onerror = function () { URL.revokeObjectURL(url); say('이 이미지를 읽지 못했습니다. PNG나 JPG로 저장한 파일을 올려 주세요.'); };
+    im.src = url;
+  }
+
+  /* ---------- 이벤트 ---------- */
+  $('file').addEventListener('change', function (e) { loadFile(e.target.files[0]); e.target.value = ''; });
+  var drop = $('drop');
+  ['dragenter', 'dragover'].forEach(function (t) {
+    drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.add('over'); });
+  });
+  ['dragleave', 'drop'].forEach(function (t) {
+    drop.addEventListener(t, function (e) { e.preventDefault(); drop.classList.remove('over'); });
+  });
+  drop.addEventListener('drop', function (e) { loadFile(e.dataTransfer && e.dataTransfer.files[0]); });
+  document.addEventListener('dragover', function (e) { e.preventDefault(); });
+  document.addEventListener('drop', function (e) {
+    if (e.target !== drop && !drop.contains(e.target)) { e.preventDefault(); loadFile(e.dataTransfer && e.dataTransfer.files[0]); }
+  });
+  document.addEventListener('paste', function (e) {
+    var items = (e.clipboardData && e.clipboardData.items) || [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image/') === 0) { loadFile(items[i].getAsFile()); e.preventDefault(); return; }
+    }
+  });
+
+  function setRadio(name, value) {
+    var el = document.querySelector('input[name="' + name + '"][value="' + value + '"]');
+    if (el) el.checked = true;
+  }
+  $('s1').addEventListener('click', function () {
+    say(''); state.mode = 'gray'; setRadio('mode', 'gray'); state.ch = 'all'; setRadio('ch', 'all');
+    setSource(sampleDigit(), '숫자 5 (예시)');
+  });
+  $('s2').addEventListener('click', function () {
+    say(''); state.mode = 'color'; setRadio('mode', 'color');
+    if (state.N > 16) { state.N = 12; setRadio('size', '12'); }
+    setSource(sampleRGB(), '빛의 삼원색 (예시)');
+  });
+
+  document.querySelectorAll('input[name="size"]').forEach(function (el) {
+    el.addEventListener('change', function () { state.N = +el.value; centerPin(); refresh(true); });
+  });
+  document.querySelectorAll('input[name="mode"]').forEach(function (el) {
+    el.addEventListener('change', function () { state.mode = el.value; refresh(false); });
+  });
+  document.querySelectorAll('input[name="fmt"]').forEach(function (el) {
+    el.addEventListener('change', function () { state.fmt = el.value; refresh(false); });
+  });
+  document.querySelectorAll('input[name="ch"]').forEach(function (el) {
+    el.addEventListener('change', function () { state.ch = el.value; refresh(false); });
+  });
+  $('inv').addEventListener('change', function (e) { state.invert = e.target.checked; refresh(false); });
+
+  $('flatBtn').addEventListener('click', function () {
+    var box = $('flatOut'), open = box.hidden;
+    box.hidden = !open;
+    $('flatBtn').setAttribute('aria-expanded', String(open));
+    $('flatBtn').textContent = open ? '펼친 모습 닫기' : '1차원으로 펼치기 (reshape) 보기';
+    renderFlat();
+  });
+
+  var grid = $('grid');
+  function cellOf(e) { return e.target.closest ? e.target.closest('.cell') : null; }
+  grid.addEventListener('mouseover', function (e) {
+    var c = cellOf(e); if (c) showDetail(+c.dataset.i, +c.dataset.j);
+  });
+  grid.addEventListener('mouseleave', showPinned);
+  grid.addEventListener('click', function (e) {
+    var c = cellOf(e); if (!c) return;
+    state.pinned = { i: +c.dataset.i, j: +c.dataset.j }; markSelected(); showPinned();
+  });
+  grid.addEventListener('keydown', function (e) {
+    var d = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] }[e.key];
+    if (!d) return;
+    e.preventDefault();
+    var N = state.N, p = state.pinned || { i: 0, j: 0 };
+    state.pinned = { i: Math.max(0, Math.min(N - 1, p.i + d[0])), j: Math.max(0, Math.min(N - 1, p.j + d[1])) };
+    markSelected(); showPinned();
+    var el = grid.querySelector('.cell.sel');
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  });
+
+  var raf = 0;
+  function onResize() {
+    if (!state.sq) return;
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(function () { if (metrics().cw !== state.lastCw) refresh(false); });
+  }
+  if (window.ResizeObserver) new ResizeObserver(onResize).observe($('gridWrap'));
+  else window.addEventListener('resize', onResize);
+
+  /* ---------- 시작: 예시 이미지로 바로 작동 ---------- */
+  function start() { setSource(sampleDigit(), '숫자 5 (예시)'); }
+  if (document.fonts && document.fonts.load) {
+    document.fonts.load('700 210px "Noto Sans KR"', '5').then(start, start);
+  } else start();
+})();
+</script>
+</body>
+</html>
