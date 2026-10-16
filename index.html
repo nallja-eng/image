@@ -138,6 +138,8 @@ figcaption { font-size: 12px; color: var(--muted); line-height: 1.4; }
 .ask { padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; }
 .ask h2 { margin: 0 0 2px; font-size: 15px; font-weight: 700; }
 .ask p { margin: 0; font-size: 14px; max-width: 80ch; }
+.ask .aside { margin-top: 6px; padding: 10px 12px; font-size: 13.5px; color: var(--fg); background: var(--surface-2); border-left: 3px solid var(--gold); border-radius: 4px; }
+.ask code { font-family: var(--mono); font-size: 12.5px; }
 #msg { margin: 0; font-size: 13px; color: var(--ch-r); min-height: 1.4em; }
 
 @media (max-width: 900px) {
@@ -164,7 +166,7 @@ figcaption { font-size: 12px; color: var(--muted); line-height: 1.4; }
       </label>
       <input class="sr" type="file" id="file" accept="image/*">
       <div class="samples">
-        <button type="button" class="chip" id="s1">예시: 숫자 5 (MNIST 모양)</button>
+        <button type="button" class="chip" id="s1">예시: 숫자 5 (MNIST처럼 글씨 = 255)</button>
         <button type="button" class="chip" id="s2">예시: 빛의 삼원색 겹침</button>
       </div>
     </div>
@@ -207,7 +209,15 @@ figcaption { font-size: 12px; color: var(--muted); line-height: 1.4; }
       </div>
     </fieldset>
 
-    <label class="ctl chk" id="fsInv"><input type="checkbox" id="inv"><span>밝기 반전 (255 − 값)</span></label>
+    <fieldset class="ctl seg" id="fsCmap">
+      <legend class="lab">화면에 칠하는 방식 (숫자는 그대로)</legend>
+      <div>
+        <label><input type="radio" name="cmap" value="gray" checked><span>255 = 흰색</span></label>
+        <label><input type="radio" name="cmap" value="gray_r"><span>255 = 검정 (gray_r)</span></label>
+      </div>
+    </fieldset>
+
+    <label class="ctl chk" id="fsInv"><input type="checkbox" id="inv"><span>밝기 반전 (숫자를 255 − 값으로 바꿈)</span></label>
   </section>
   <p id="msg" role="status"></p>
 
@@ -249,6 +259,8 @@ figcaption { font-size: 12px; color: var(--muted); line-height: 1.4; }
     <p>② 컬러로 바꾸고 R, G, B를 각각 눌러, 흰색 칸과 검은색 칸의 세 값이 어떻게 다른지 확인</p>
     <p>③ 컬러에서 "채널 3개 표"를 눌러, 같은 행·열의 세 숫자를 찾아 한 픽셀의 (R, G, B)로 묶어 보기</p>
     <p>④ 0~1 (정규화)로 바꾸고 모든 값이 0과 1 사이로 들어오는지 확인한 뒤, 신경망에 이 값을 넣는 이유 설명</p>
+    <p>⑤ 숫자 5 예시에서 "255 = 검정 (gray_r)"을 눌러 보기. 화면은 흰 바탕에 검은 글씨로 바뀌지만 칸의 숫자는 그대로인지 확인하고, "밝기 반전"을 눌렀을 때와 무엇이 다른지 비교</p>
+    <p class="aside">참고: MNIST 원본 데이터는 바탕 0, 글씨 255입니다. 교과서나 matplotlib 예시에서 흰 바탕에 검은 글씨로 보이는 것은 <code>cmap='gray_r'</code>처럼 <b>칠하는 방식</b>만 뒤집은 것이고, 저장된 숫자가 바뀐 것은 아닙니다. 반대로 "밝기 반전"은 숫자 자체를 바꿉니다.</p>
   </section>
 </div>
 
@@ -257,7 +269,7 @@ figcaption { font-size: 12px; color: var(--muted); line-height: 1.4; }
   var SRC_MAX = 256;
   var $ = function (id) { return document.getElementById(id); };
   var state = {
-    N: 12, mode: 'gray', fmt: 'int', ch: 'all', invert: false,
+    N: 12, mode: 'gray', fmt: 'int', ch: 'all', invert: false, cmap: 'gray',
     sq: null, rgb: null, pinned: null, name: '', lastCw: 0
   };
 
@@ -326,6 +338,8 @@ figcaption { font-size: 12px; color: var(--muted); line-height: 1.4; }
     var o = k * 3, v = grayOf(state.rgb[o], state.rgb[o + 1], state.rgb[o + 2]);
     return state.invert ? 255 - v : v;
   }
+  /* 숫자 v를 화면에 칠할 밝기 (gray_r면 뒤집어서 칠함, 숫자는 그대로) */
+  function shade(v) { return state.cmap === 'gray_r' ? 255 - v : v; }
   function fmtVal(v) { return state.fmt === 'int' ? String(v) : (v / 255).toFixed(2); }
   function fgFor(r, g, b) { return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.58 ? '#14182B' : '#FFFFFF'; }
   function bin8(v) { var s = v.toString(2); while (s.length < 8) s = '0' + s; return s; }
@@ -386,7 +400,7 @@ figcaption { font-size: 12px; color: var(--muted); line-height: 1.4; }
         var bg, fg, inner, vr, vg, vb;
         if (state.mode === 'gray') {
           var v = grayAt(k);
-          vr = vg = vb = v; inner = fmtVal(v);
+          vr = vg = vb = shade(v); inner = fmtVal(v);
         } else if (all) {
           vr = r; vg = gg; vb = b;
           inner = '<span><i>R</i>' + fmtVal(r) + '</span><span><i>G</i>' + fmtVal(gg) + '</span><span><i>B</i>' + fmtVal(b) + '</span>';
@@ -466,7 +480,8 @@ figcaption { font-size: 12px; color: var(--muted); line-height: 1.4; }
     ];
     var h = '';
     rows.forEach(function (r) { h += '<dt>' + r[0] + '</dt><dd>' + r[1] + '</dd>'; });
-    if (N === 28 && !all) h += '<p class="note">28 × 28 = 784개, 교과서 MNIST 손글씨와 같은 크기입니다.</p>';
+    if (N === 28 && !all) h += '<p class="note">28 × 28 = 784개, 교과서 MNIST 손글씨와 같은 크기입니다. MNIST도 바탕 0, 글씨 255로 저장되어 있습니다.</p>';
+    if (state.mode === 'gray' && state.cmap === 'gray_r') h += '<p class="note">지금은 화면만 뒤집어 칠한 상태입니다. 위의 숫자 개수·범위·용량은 그대로입니다.</p>';
     if (all) h += '<p class="note">컬러는 칸마다 R, G, B 숫자 3개가 필요해서 흑백의 3배입니다.</p>';
     if (isSplit()) h += '<p class="note">' + N + '×' + N + ' 표 3장(R, G, B)을 겹친 것이 shape ' + shape + ' 입니다.</p>';
     $('facts').innerHTML = h;
@@ -478,10 +493,11 @@ figcaption { font-size: 12px; color: var(--muted); line-height: 1.4; }
     var r = state.rgb[o], g = state.rgb[o + 1], b = state.rgb[o + 2];
     var head, list;
     if (state.mode === 'gray') {
-      var v = grayAt(k), orig = grayOf(r, g, b);
-      head = swatch('rgb(' + v + ',' + v + ',' + v + ')', i, j, 'X[' + i + '][' + j + '] = ' + v);
-      list = row('밝기', String(v)) + row('이진수 (8비트)', bin8(v)) +
+      var v = grayAt(k), orig = grayOf(r, g, b), sv = shade(v);
+      head = swatch('rgb(' + sv + ',' + sv + ',' + sv + ')', i, j, 'X[' + i + '][' + j + '] = ' + v);
+      list = row('저장된 숫자', String(v)) + row('이진수 (8비트)', bin8(v)) +
         row('정규화', v + ' / 255 = ' + (v / 255).toFixed(3));
+      if (state.cmap === 'gray_r') list += row('화면 색', '255 − ' + v + ' = ' + sv + ' 밝기로 칠함');
       if (state.invert) list += row('반전 전 밝기', orig + ' → 255 − ' + orig + ' = ' + v);
       else if (!(r === g && g === b)) list += row('계산', '0.299×' + r + ' + 0.587×' + g + ' + 0.114×' + b);
     } else {
@@ -517,7 +533,8 @@ figcaption { font-size: 12px; color: var(--muted); line-height: 1.4; }
   /* ---------- 안내 문구 ---------- */
   function renderNote() {
     var t;
-    if (state.mode === 'gray') t = '흑백 값 = 0.299×R + 0.587×G + 0.114×B (반올림). 0은 검정, 255는 흰색. 칸을 누르면 아래 왼쪽에 자세히 나옵니다.';
+    if (state.mode === 'gray' && state.cmap === 'gray_r') t = '숫자는 그대로이고, 칠하는 방식만 뒤집었습니다 (0 → 흰색, 255 → 검정). matplotlib의 cmap=\'gray_r\'과 같습니다. 이미지 파일에 저장될 때는 여전히 255가 흰색입니다.';
+    else if (state.mode === 'gray') t = '흑백 값 = 0.299×R + 0.587×G + 0.114×B (반올림). 0은 검정, 255는 흰색. 칸을 누르면 아래 왼쪽에 자세히 나옵니다.';
     else if (state.ch === 'split') t = '컬러 이미지는 R, G, B 숫자표 3장으로 저장됩니다. 세 표에서 같은 행·열 위치의 숫자 3개가 한 픽셀의 색입니다.';
     else if (state.ch === 'all') t = '칸 색은 원래 픽셀 색, 숫자는 R·G·B 세기. 0은 꺼짐, 255는 가장 밝음.';
     else t = ({ r: '빨강', g: '초록', b: '파랑' })[state.ch] + ' 채널만 본 모습. 숫자가 클수록 그 색이 진해집니다.';
@@ -531,6 +548,7 @@ figcaption { font-size: 12px; color: var(--muted); line-height: 1.4; }
     if (resample) sampleGrid();
     $('fsCh').hidden = state.mode !== 'color';
     $('fsInv').hidden = state.mode !== 'gray';
+    $('fsCmap').hidden = state.mode !== 'gray';
     renderGrid();
     renderPreviews();
     renderFacts();
@@ -627,6 +645,9 @@ figcaption { font-size: 12px; color: var(--muted); line-height: 1.4; }
   });
   document.querySelectorAll('input[name="ch"]').forEach(function (el) {
     el.addEventListener('change', function () { state.ch = el.value; refresh(false); });
+  });
+  document.querySelectorAll('input[name="cmap"]').forEach(function (el) {
+    el.addEventListener('change', function () { state.cmap = el.value; refresh(false); });
   });
   $('inv').addEventListener('change', function (e) { state.invert = e.target.checked; refresh(false); });
 
